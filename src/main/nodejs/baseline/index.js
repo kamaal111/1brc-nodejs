@@ -1,14 +1,15 @@
-import * as readline from 'node:readline';
-import * as fs from 'node:fs';
+import readline from "node:readline";
+import fs from "node:fs";
 
 const fileName = process.argv[2];
-const stream = fs.createReadStream(fileName);
-const lineStream = readline.createInterface(stream);
+const lineStream = readline.createInterface({
+  input: fs.createReadStream(fileName),
+});
 
 const aggregations = new Map();
 
-for await (const line of lineStream) {
-  const [stationName, temperatureStr] = line.split(';');
+lineStream.on("line", (line) => {
+  const [stationName, temperatureStr] = line.split(";");
 
   // use integers for computation to avoid loosing precision
   const temperature = Math.floor(parseFloat(temperatureStr) * 10);
@@ -16,21 +17,23 @@ for await (const line of lineStream) {
   const existing = aggregations.get(stationName);
 
   if (existing) {
+    existing.sum += temperature;
+    existing.count += 1;
     existing.min = Math.min(existing.min, temperature);
     existing.max = Math.max(existing.max, temperature);
-    existing.sum += temperature;
-    existing.count++;
   } else {
     aggregations.set(stationName, {
+      sum: temperature,
       min: temperature,
       max: temperature,
-      sum: temperature,
       count: 1,
     });
   }
-}
+});
 
-printCompiledResults(aggregations);
+lineStream.on("close", () => {
+  printCompiledResults(aggregations);
+});
 
 /**
  * @param {Map} aggregations
@@ -38,21 +41,18 @@ printCompiledResults(aggregations);
  * @returns {void}
  */
 function printCompiledResults(aggregations) {
-  const sortedStations = Array.from(aggregations.keys()).sort();
+  const calculatedAggregations = Array.from(aggregations.keys())
+    .sort()
+    .map((station) => {
+      const data = aggregations.get(station);
+      const roundedMin = round(data.min / 10);
+      const roundedSum = round(data.sum / 10 / data.count);
+      const roundedMax = round(data.max / 10);
+      return `${station}=${roundedMin}/${roundedSum}/${roundedMax}`;
+    })
+    .join(", ");
 
-  let result =
-    '{' +
-    sortedStations
-      .map((station) => {
-        const data = aggregations.get(station);
-        return `${station}=${round(data.min / 10)}/${round(
-          data.sum / 10 / data.count
-        )}/${round(data.max / 10)}`;
-      })
-      .join(', ') +
-    '}';
-
-  console.log(result);
+  console.log(`{${calculatedAggregations}}`);
 }
 
 /**
