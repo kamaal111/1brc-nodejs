@@ -6,6 +6,7 @@ const lineStream = readline.createInterface({
   input: fs.createReadStream(fileName),
 });
 
+/** @type {Map.<string, {sum: number, count: number, min: number, max: number}>} */
 const aggregations = new Map();
 
 lineStream.on("line", (line) => {
@@ -15,7 +16,6 @@ lineStream.on("line", (line) => {
   const temperature = Math.floor(parseFloat(temperatureStr) * 10);
 
   const existing = aggregations.get(stationName);
-
   if (existing) {
     existing.sum += temperature;
     existing.count += 1;
@@ -36,7 +36,7 @@ lineStream.on("close", () => {
 });
 
 /**
- * @param {Map} aggregations
+ * @param {Map.<string, {sum: number, count: number, min: number, max: number}>} aggregations
  *
  * @returns {void}
  */
